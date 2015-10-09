@@ -1,0 +1,615 @@
+#M3S7-Statistical Pattern Recognition 
+#Project 1
+
+install.packages("mvtnorm")
+install.packages("plotrix")
+library("MASS")
+library("mvtnorm")
+
+
+em.norm<-function(x,means,covariances,mix.prop){
+  "loglike"<-function(datapoints,pi,mu,sigma){
+    takelog<-rep(0,k)
+    log.like.inter<-rep(0,n)
+    for (i in 1:n){
+      for (j in 1:k){
+        takelog[j]<-pi[j]*dmvnorm(datapoints[i,],mu[[j]],sigma[[j]])      
+      }
+      log.like.inter[i]<-log(sum(takelog))
+    }
+    log.like<-sum(log.like.inter)
+    return(log.like)
+  }
+  
+  old.pii<-mix.prop
+  old.mui<-means
+  old.covi<-covariances
+  n<-length(x[,1])
+  k=length(old.pii)
+  old.log.like<-loglike(x,old.pii,old.mui,old.covi)
+  gam.nom<-matrix(0,nrow=n,ncol=k)
+  new.mui<-list(0)[rep(1,k)]
+  new.pii<-rep(0,k)
+  new.covi<-list(0)[rep(1,k)]
+  inter.mat<-list(0)[rep(1,n)]
+  new.log.like<-0
+  z<-0
+  
+  while (z<=100 & abs(old.log.like-new.log.like)>0.1){  
+    old.log.like<-new.log.like
+    for (j in 1:n){
+      for (kk in 1:k){
+        gam.nom[j,kk]<-old.pii[kk]*dmvnorm(x[j,],old.mui[[kk]],old.covi[[kk]]) 
+      }
+    }
+    #gam.nom
+    gam.denom<-1/apply(gam.nom,1,sum)
+    #gam.denom
+    gamma<-gam.nom*gam.denom
+    
+    nvec<-apply(gamma,2,sum)
+    
+    for (i in 1:k){
+      new.mui[[i]]<-(1/nvec[i])*apply(gamma[,i]*x,2,sum)
+      new.pii[i]<-nvec[i]/n
+    }
+    new.mui
+    new.pii
+    
+    for (i in 1:k){
+      for (j in 1:n){
+        inter.mat[[j]]<-gamma[j,i]*(x[j,]-new.mui[[i]])%*%t(x[j,]-new.mui[[i]])
+      }
+      new.covi[[i]]<-Reduce("+",inter.mat)*(1/nvec[i])
+    }
+    
+    new.log.like<-loglike(x,new.pii,new.mui,new.covi)
+    #print(new.log.like)
+    
+    old.pii<-new.pii
+    old.mui<-new.mui
+    old.covi<-new.covi
+    z<-z+1
+  }
+  result<-list(means=new.mui,covariances=new.covi,mix.prop=new.pii,ML.est=new.log.like,iterations=z)
+  return(result)
+}
+
+x<-as.matrix(synth.te[,-3])
+#Initial covariances chose randomly
+cov1<-matrix(c(1,0.6,0.6,1),nrow=2,ncol=2)
+cov2<-matrix(c(1.5,0.7,0.7,1.5),nrow=2,ncol=2)
+cov3<-matrix(c(2.8,1.2,1.2,2.8),nrow=2,ncol=2)
+cov4<-matrix(c(0.8,0.2,0.2,0.8),nrow=2,ncol=2)
+cov5<-matrix(c(1.3,0.4,0.4,1.3),nrow=2,ncol=2)
+cov6<-matrix(c(3.1,0,0,3.1),nrow=2,ncol=2)
+
+#K=2
+old.pii2<-c(7/10,3/10)
+old.mui2<-list(c(1,1.3),c(3,2))
+old.covi2<-list(cov1,cov2)
+k2<-list(old.mui2,old.covi2,old.pii2)
+#K=3
+old.pii3<-c(4/10,3/10,3/10)
+old.mui3<-list(c(1,1.3),c(1,4),c(3,0))
+old.covi3<-list(cov1,cov2,cov3)
+k3<-list(old.mui3,old.covi3,old.pii3)
+#K=4
+old.pii4<-c(3/10,2/10,1/10,4/10)
+old.mui4<-list(c(1,1.3),c(1,4),c(3,0),c(2.5,1.3))
+old.covi4<-list(cov1,cov2,cov3,cov4)
+k4<-list(old.mui4,old.covi4,old.pii4)
+#K=5
+old.pii5<-c(2/10,3/10,1/10,2/10,2/10)
+old.mui5<-list(c(1,1.3),c(1,4),c(3,0),c(2.5,1.3),c(0.2,0.2))
+old.covi5<-list(cov1,cov2,cov3,cov4,cov5)
+k5<-list(old.mui5,old.covi5,old.pii5)
+#K=6
+old.pii6<-c(9/100,12/100,27/100,18/100,12/100,22/100)
+old.mui6<-list(c(1,1.3),c(1,4),c(3,0),c(2.5,1.3),c(0.2,0.2),c(0.4,1.6))
+old.covi6<-list(cov1,cov2,cov3,cov4,cov5,cov6)
+k6<-list(old.mui6,old.covi6,old.pii6)
+
+biglist<-list(k2,k3,k4,k5,k6)
+#biglist
+
+table.report<-matrix(c(2,3,4,5,6),nrow=5,ncol=3)
+Sys.time()->start
+for (i in 1:5){
+  em<-em.norm(x,biglist[[i]][[1]],biglist[[i]][[2]],biglist[[i]][[3]])
+  table.report[i,2]<-em$ML.est
+  table.report[i,3]<-em$ML.est-(6*(i+1)-1)
+  if (i>1){
+    if (table.report[i,3]>table.report[i-1,3]){
+      em.best<-em
+    }
+  }
+}
+
+table.report
+print(Sys.time()-start)
+
+#em.best<-em.norm(x,biglist[[3]][[1]],biglist[[3]][[2]],biglist[[3]][[3]])
+
+em.best
+
+#Q1b-iii ploting with best choice of K
+xseq<-seq(-1.1,0.8,0.02)
+yseq<-seq(-0.12,1.05,0.02)
+"zvalues"<-function(x.star){
+  zvalues1<-em.best$mix.prop[1]*dmvnorm(x.star,em.best$means[[1]],em.best$covariances[[1]])+em.best$mix.prop[2]*dmvnorm(x.star,em.best$means[[2]],em.best$covariances[[2]])+em.best$mix.prop[3]*dmvnorm(x.star,em.best$means[[3]],em.best$covariances[[3]])+em.best$mix.prop[4]*dmvnorm(x.star,em.best$means[[4]],em.best$covariances[[4]])
+  return(zvalues1)
+}
+em.best
+zvalues.tot<-matrix(0,nrow=length(xseq),ncol=length(yseq))
+
+for (i in 1:length(xseq)){
+  for (j in 1:length(yseq)){
+    zvalues.tot[i,j]<-zvalues(c(xseq[i],yseq[j]))
+  }
+}
+
+contour(xseq,yseq,zvalues.tot,main='Contour Plot & Datapoints for K=4',xlab='X-values',ylab='Y-values')
+points(x[,1],x[,2],pch= 4 ,col='blue')
+
+#Q2
+#(a)
+"rrayleigh" <- function (n,theta) {
+  u <- runif(n,0,1)
+  sqrt(-2*log(u))/sqrt(2*theta)
+}
+
+"rsample"<-function(n,theta1,theta2){
+  #class1 sample
+  rray.x1<-rrayleigh(n,theta1)
+  rray.y1<-rrayleigh(n,theta1)
+  
+  rray.x2<-rrayleigh(n,theta2)
+  rray.y2<-rrayleigh(n,theta2)
+  
+  rrayc1.class<-rep(1,n)
+  rrayc2.class<-rep(2,n)
+  
+  rand.sample<-data.frame(rray.x1,rray.y1,rrayc1.class,rray.x2,rray.y2,rrayc2.class)
+}
+#the function returns a data frame for a better clarity and readability of my code. 
+#I later transform the samples generated by this function into matrices or lists to answer the 
+#following questions in an easier way.
+
+
+#(b)-(c)
+#the following function returns a value for the function |e_B-0.15| for a given theta1.
+#we then use the golden ratio bracketing algorithm to find the value for theta1 
+#that minimizes it
+
+"bayes.error"<-function(theta1){
+  theta2=1
+  Tmin<-sqrt(log(theta1/theta2)*(2/(theta1-theta2)))
+  
+  cdf.c1<-theta1*(Tmin^2)*exp(-theta1*Tmin^2)+exp(-theta1*Tmin^2)
+  cdf.c2<-1-theta2*(Tmin^2)*exp(-theta2*Tmin^2)-exp(-theta2*Tmin^2)
+  b.error<-abs(0.5*(cdf.c1+cdf.c2)-0.15)
+  return(b.error)
+}
+
+
+#golden search algorithm
+grbrack<-function(f,x1,x3,eps){
+  ratio<-(1+sqrt(5))/2
+  x2<-x1+(x3-x1)/ratio
+  x2
+  i=0
+  
+  while ((x3-x1)>eps){
+    i=i+1   
+    
+    f.x1=f(x1)
+    f.x2=f(x2)
+    f.x3=f(x3)
+    if (f.x2<f.x1 && f.x2<f.x3){
+      x3<-x2
+      x2<-x1+(x3-x1)/ratio
+    }
+    else{
+      x1<-x2
+      x2<-x1+(x3-x1)/ratio 
+    }  
+  }
+  return(x2)
+}
+grbrack(bayes.error,3,10,0.0000001)
+
+#(d)
+#the following function computes the discriminant score conditional on the 2-classes 
+#it then compares the 2 discriminant scores and allocates the tested point to
+#the class with the highest score.
+#discriminant function used: g_i(x)=log(p(c_i))+log(p(x|c_i))
+"discriminant"<-function(x,y,theta1,theta2){
+  
+  p.c1<-4*theta1^2*x*y*exp(-theta1*(x^2+y^2))
+  p.c2<-4*theta2^2*x*y*exp(-theta2*(x^2+y^2))
+  
+  g1<-log(0.5)+log(p.c1)
+  g2<-log(0.5)+log(p.c2)
+  discr<-g1-g2
+  if (g1>=g2){
+    class<-1
+  }
+  else{
+    class<-2
+  }
+  return(class)
+}
+
+#points<-rsample(100,4,2)
+# test<-discriminant(points$rray.x2[5],points$rray.y2[5],4,2)
+# test
+
+#(e)
+#f(x,y) = p(C1)f(x,y|C1)+p(C2)f(x,y|C2)
+
+theta1=4
+theta2=2
+xvals=seq(0,1.4,0.02)
+yvals=xvals
+uncond.cdf<-matrix(0,nrow=length(xvals),ncol=length(yvals))
+
+for (i in 1:length(xvals)){
+  for (j in 1:length(yvals)){
+    f.c1<-4*theta1^2*xvals[i]*yvals[j]*exp(-theta1*(xvals[i]^2+yvals[j]^2))
+    f.c2<-4*theta2^2*xvals[i]*yvals[j]*exp(-theta2*(xvals[i]^2+yvals[j]^2))
+    uncond.cdf[i,j]<-0.5*(f.c1+f.c2)
+  }
+}
+#uncond.cdf
+obs50<-rsample(50,4,2)
+
+contour(xvals,yvals,uncond.cdf,main='Contour plot with data and decision boundary',xlab='X-values',ylab='Y-values')
+points(obs50$rray.x1,obs50$rray.y1,col="red",pch=4)
+points(obs50$rray.x2,obs50$rray.y2,col="blue",pch=4)
+Tmin<-sqrt(log(4/2)*(2/(4-2)))
+require("plotrix")
+draw.circle(0,0,Tmin,nv=100,border="dark green",lty=1,lwd=2)
+legend("topright",legend=c("C1","C2","Tmin"),col=c("red","blue","dark green"),lty=1,bty='n')
+
+
+#(g)
+"ml"<-function(data){
+  n<-length(data$rray.x1)
+  thetahat.c1<-2*n/sum((data$rray.x1)^2+(data$rray.y1)^2)
+  thetahat.c2<-2*n/sum((data$rray.x2)^2+(data$rray.y2)^2)
+  thetahat.est<-cbind(thetahat.c1,thetahat.c2)
+  return(thetahat.est)
+}
+
+
+ml.est<-ml(obs50)
+ml.est
+
+"eval.discr"<-function(data,estimate){
+  discr.alloc1<-rep(0,length(data$rray.x1))
+  discr.alloc2<-rep(0,length(data$rray.x1))
+  for (i in 1:length(data$rray.x1)){
+    discr.alloc1[i]<-discriminant(data$rray.x1[i],data$rray.y1[i],estimate[1],estimate[2])
+    discr.alloc2[i]<-discriminant(data$rray.x2[i],data$rray.y2[i],4,2)
+  }
+  data.new<-data.frame(data$rray.x1,data$rray.y1,data$rrayc1.class,discr.alloc1,data$rray.x2,data$rray.y2,data$rrayc2.class,discr.alloc2)
+  return(data.new)
+}
+points.new<-eval.discr(obs50,ml.est)
+#comparing the class allocated by the ml classifier and the true class:
+
+tablec1<-table(points.new$data.rrayc1.class,points.new$discr.alloc1)
+tablec2<-table(points.new$data.rrayc2.class,points.new$discr.alloc2)
+errorc1<-tablec1[2]/(tablec1[1]+tablec1[2])
+errorc2<-tablec2[1]/(tablec2[1]+tablec2[2])
+errorc1
+errorc2
+classifier.error<-0.5*(errorc2+errorc1)
+#the error of this classifier is the following:
+classifier.error
+
+
+#Q2h
+training.sample<-rsample(100,4,2)
+test.sample<-rsample(5000,4,2)
+
+#Estimative using ML
+training.ml<-ml(training.sample)
+test.ml<-ml(test.sample)
+
+training.eval<-eval.discr(training.sample,training.ml)
+test.eval<-eval.discr(test.sample,test.ml)
+
+training.class.tot<-c(training.eval$data.rrayc1.class,training.eval$data.rrayc2.class)
+training.class.est<-c(training.eval$discr.alloc1,training.eval$discr.alloc2)
+test.class.tot<-c(test.eval$data.rrayc1.class,test.eval$data.rrayc2.class)
+test.class.est<-c(test.eval$discr.alloc1,test.eval$discr.alloc2)
+
+training.ml.table<-table(training.class.tot,training.class.est)
+test.ml.table<-table(test.class.tot,test.class.est)
+
+training.ml.error<-(training.ml.table[2,1]+training.ml.table[1,2])/200
+test.ml.error<-(test.ml.table[2,1]+test.ml.table[1,2])/10000
+
+training.ml.error
+test.ml.error
+
+#LDA
+#training
+training2.data<-cbind(c(training.sample$rray.x1,training.sample$rray.x2),c(training.sample$rray.y1,training.sample$rray.y2))
+#training2.data
+
+training2.class<-c(training.sample$rrayc1.class,training.sample$rrayc2.class)
+#training2.class
+training2.lda<-lda(training2.data,training2.class)
+#training2.lda
+
+prediction.training2<-predict(training2.lda)
+training2.lda.table<-table(prediction.training2$class,training2.class)
+training2.lda.error<-(training2.lda.table[1,2]+training2.lda.table[2,1])/200
+training2.lda.error
+
+#LDA-testing
+test2.data<-cbind(c(test.sample$rray.x1,test.sample$rray.x2),c(test.sample$rray.y1,test.sample$rray.y2))
+test2.class<-c(test.sample$rrayc1.class,test.sample$rrayc2.class)
+
+test2.lda<-lda(test2.data,test2.class)
+prediction.test2<-predict(test2.lda)
+test2.lda.table<-table(prediction.test2$class,test2.class)
+test2.lda.error<-(test2.lda.table[1,2]+test2.lda.table[2,1])/10000
+test2.lda.error
+
+#QDA
+#training
+training2.qda<-qda(training2.data,training2.class)
+training2.predict.qda<-predict(training2.qda)
+training2.table.qda<-table(training2.predict.qda$class,training2.class)
+training2.qda.error<-(training2.table.qda[1,2]+training2.table.qda[2,1])/200
+training2.qda.error
+
+#testing
+test2.qda<-qda(test2.data,test2.class)
+test2.predict.qda<-predict(test2.qda)
+test2.table.qda<-table(test2.predict.qda$class,test2.class)
+test2.qda.error<-(test2.table.qda[1,2]+test2.table.qda[2,1])/10000
+test2.qda.error
+
+
+#Q3
+
+"kernel"<-function(z){
+  return((1/sqrt(2*pi))*exp(-z^2/2))
+}
+
+"kde"<-function(x.star,data,bw){
+  d<-length(x.star)
+  n<-length(data[,1])
+  h<-prod(bw)
+  m<-matrix(rep(0,n*d),nrow=n,ncol=d)
+  for (i in 1:n){
+    for (j in 1:d){
+      m[i,j]<-(x.star[j]-data[i,j])/bw[j]
+    }
+  }
+  m2<-apply(m,1:2,kernel)
+  vec<-m2[,1]*m2[,2]
+  s<-sum(vec)
+  p<-(1/(n*h))*s
+  return(p)
+}
+#h<-c(0.2,0.5)
+#x.star<-c(points$rray.x2[7],points$rray.y2[7])
+
+dataset<-cbind(training.sample$rray.x1,training.sample$rray.y1)
+dataset2<-cbind(training.sample$rray.x2,training.sample$rray.y2)
+
+#Q3b
+#Dividing the training set in D1 and D2 randomly
+dataset.c1<-cbind(training.sample$rray.x1,training.sample$rray.y1)
+dataset.c2<-cbind(training.sample$rray.x2,training.sample$rray.y2)
+d1.c1<-sample(1:100,50,replace=F)
+d1.c2<-sample(1:100,50,replace=F)
+
+d2.c1<-rep(0,100)
+d2.c2<-rep(0,100)
+
+for (i in 1:100){
+  if (i %in% d1.c1==FALSE){
+    d2.c1[i]<-i
+  }
+  if (i %in% d1.c2==FALSE){
+    d2.c2[i]<-i
+  }
+}
+d2.c1<-d2.c1[d2.c1!=0]
+d2.c2<-d2.c2[d2.c2!=0]
+
+cross1.c1<-matrix(0,nrow=50,ncol=2)
+cross1.c2<-cross1.c1
+cross2.c1<-cross1.c1
+cross2.c2<-cross1.c1
+
+for (i in 1:50){
+  cross1.c1[i,]<-dataset.c1[d1.c1[i],]
+  cross2.c1[i,]<-dataset.c1[d2.c1[i],]
+  cross1.c2[i,]<-dataset.c2[d1.c2[i],]
+  cross2.c2[i,]<-dataset.c2[d2.c2[i],]
+}
+D1<-rbind(cross1.c1,cross1.c2)
+D1.true.c<-c(rep(1,50),rep(2,50))
+D2<-rbind(cross2.c1,cross2.c2)
+D2.true.c<-D1.true.c
+H<-expand.grid(seq(0.05,1,0.05),seq(0.05,1,0.05))
+
+
+
+"error.class"<-function(h,testdata,traindata.c1,traindata.c2,true.class.vec){
+  T<-matrix(0,nrow=length(testdata[,1]),ncol=3)
+  for (i in 1:length(testdata[,1])){
+    T[i,1]<-kde(testdata[i,],traindata.c1,h)
+    T[i,2]<-kde(testdata[i,],traindata.c2,h)
+    if (T[i,1]>T[i,2]){
+      T[i,3]<-1
+    }
+    else{
+      T[i,3]<-2
+    }  
+  }
+  tt<-table(T[,3],true.class.vec)
+  error<-(tt[1,2]+tt[2,1])/length(T[,3])
+  return(error)
+}
+
+error.vec12<-rep(0,400)
+error.vec21<-rep(0,400)
+for (i in 1:400){
+  h<-c(H[i,1],H[i,2])
+  error.vec12[i]<-error.class(h,D2,cross1.c1,cross1.c2,D2.true.c)
+  error.vec21[i]<-error.class(h,D1,cross2.c1,cross2.c2,D1.true.c)
+}
+
+# h<-c(H[1,1],H[1,2])
+# min(error.vec12)
+# min(error.vec21)
+error.tot<-0.5*(error.vec12+error.vec21)
+error.tot
+min(error.tot)
+b<-which.min(error.tot)
+h.best<-c(H[b,1],H[b,2])
+h.best
+
+#Q3d
+#test.sample
+datatrain.c1<-cbind(training.sample$rray.x1,training.sample$rray.y1)
+datatrain.c2<-cbind(training.sample$rray.x2,training.sample$rray.y2)
+datatest.c1<-cbind(test.sample$rray.x1,test.sample$rray.y1)
+datatest.c2<-cbind(test.sample$rray.x2,test.sample$rray.y2)
+datatest.tot<-rbind(datatest.c1,datatest.c2)
+#datatest.tot
+datatest.true.c<-c(test.sample$rrayc1.class,test.sample$rrayc2.class)
+
+
+error.class(h.best,datatest.tot,datatrain.c1,datatrain.c2,datatest.true.c)
+
+
+#Q4
+
+#training.sample
+#Redefining my training and test sets of data
+q4train.c1<-cbind(training.sample$rray.x1,training.sample$rray.y1)
+q4train.c2<-cbind(training.sample$rray.x2,training.sample$rray.y2)
+q4train<-rbind(q4train.c1,q4train.c2)
+q4train.class<-c(training.sample$rrayc1.class,training.sample$rrayc2.class)
+
+
+#knn.alloc(c(0.3,0,3),q4train,q4train.class,11)
+
+"knn.dist"<-function(train,test,class,k){
+  "dist"<-function(x,y){
+    return(sqrt((x[1]-y[1])^2+(x[2]-y[2])^2))
+  }
+  "dist.vector"<-function(x.star,datapoints){
+    dist.vec<-rep(0,length(datapoints[,1]))
+    for (i in 1:length(datapoints[,1])){
+      dist.vec[i]<-dist(x.star,datapoints[i,])
+    }
+    return(dist.vec)
+  }
+  "tricube"<-function(x){
+    y<-(1-abs(x)^3)^3
+    return(y)
+  }
+  
+  "knn.alloc"<-function(x.star,traindata,classvec,K){
+    
+    dist.vec<-dist.vector(x.star,traindata)
+    scale.dist.vec<-dist.vec/max(dist.vec)
+    
+    knn.index<-order(scale.dist.vec)[1:K]
+    knn.points<-matrix(0,nrow=K,ncol=6)
+    
+    for (i in 1:K){
+      #first points of the knn.points is x.star
+      knn.points[i,1]<-traindata[knn.index[i],1]
+      knn.points[i,2]<-traindata[knn.index[i],2]
+      knn.points[i,3]<-classvec[knn.index[i]]
+      knn.points[i,4]<-scale.dist.vec[knn.index[i]]
+      
+      if (knn.points[i,3]==1){
+        knn.points[i,5]<-tricube(knn.points[i,4])
+      }
+      else{
+        knn.points[i,6]<-tricube(knn.points[i,4])
+      }
+    }
+    #print(knn.points)
+    weights.vec1<-knn.points[,5]
+    weights.vec2<-knn.points[,6]
+    #need to remove 1
+    
+    w1<-sum(weights.vec1)
+    w2<-sum(weights.vec2)
+    if (w1>w2){
+      x.star.alloc<-1
+    }
+    else if (w1<w2){x.star.alloc<-2}
+    else{x.start.alloc<-sample(1:2,1)}
+    
+    #   print(knn.points)
+    #   print(weights.vec1)
+    #   print(weights.vec2)
+    return(x.star.alloc)
+  }
+  alloc<-apply(test,1,knn.alloc,traindata=train,classvec=class,K=k)
+  return(alloc)  
+}
+
+#Q4b
+kvec<-c(3,7,11,15,19,23,27,31,35,39)
+#D1
+#D2
+#D1.true.c
+#D2.true.c
+"knn.cross.err"<-function(D1,D2,D1.class,D2.class,K){
+  knn12<-knn.dist(D1,D2,D1.class,K)
+  knn12.table<-table(D1.class,knn12)
+  knn12.err<-(knn12.table[1,2]+knn12.table[2,1])/100
+  
+  knn21<-knn.dist(D2,D1,D2.class,K)
+  knn21.table<-table(D2.class,knn21)
+  knn21.err<-(knn21.table[1,2]+knn21.table[2,1])/100
+  
+  knn.average<-0.5*(knn12.err+knn21.err)
+  return(knn.average)
+}
+
+
+
+"knn.k.opt"<-function(D1,D2,D1.class,D2.class,kvec){
+  knn.err.vec<-rep(0,length(kvec))
+  for (i in 1:length(kvec)){
+    knn.err.vec[i]<-knn.cross.err(D1,D2,D1.true.c,D2.true.c,kvec[i])
+  }
+  
+  z<-which.min(knn.err.vec)
+  #print(knn.err.vec)
+  #print(z)
+  best<-kvec[z]
+  return(best)
+}
+
+k.best<-knn.k.opt(D1,D2,D1.true.c,D2.true.c,kvec)
+k.best
+#Q4c
+#Using the k.best found above
+q4test.c1<-cbind(test.sample$rray.x1,test.sample$rray.y1)
+q4test.c2<-cbind(test.sample$rray.x2,test.sample$rray.y2)
+q4test<-rbind(q4test.c1,q4test.c2)
+q4test.class<-c(test.sample$rrayc1.class,test.sample$rrayc2.class)
+
+q4c<-knn.dist(q4train,q4test,q4train.class,k.best)
+q4c.table<-table(q4test.class,q4c)
+q4c.error<-(q4c.table[1,2]+q4c.table[2,1])/sum(q4c.table)
+q4c.error
+
